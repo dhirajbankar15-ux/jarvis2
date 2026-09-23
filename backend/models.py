@@ -25,6 +25,8 @@ class Trade(Base):
     quantity = Column(Float, nullable=False)
     entry_price = Column(Float, nullable=False)
     exit_price = Column(Float, nullable=True)
+    stop_loss = Column(Float, nullable=True, default=0.0)
+    take_profit = Column(Float, nullable=True, default=0.0)
     pnl = Column(Float, default=0.0)
     status = Column(String(20), default="OPEN")
     created_at = Column(DateTime, default=datetime.utcnow)

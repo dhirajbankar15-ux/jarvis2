@@ -304,12 +304,32 @@ async def lifespan(app: FastAPI):
 
                             if open_trade is None:
                                 # No position open - enter on the signal
+                                entry_price = live_data['close']
+
+                                # Calculate stop loss and take profit based on agent parameters
+                                if agent_name == "XAUUSD":
+                                    agent = agents_map["XAUUSD"]
+                                    sl_pips = agent.stop_loss_pips
+                                    tp_pips = agent.target_pips
+                                    if signal.value == "BUY":
+                                        stop_loss_price = entry_price - sl_pips
+                                        take_profit_price = entry_price + tp_pips
+                                    else:  # SELL
+                                        stop_loss_price = entry_price + sl_pips
+                                        take_profit_price = entry_price - tp_pips
+                                else:
+                                    # For other agents, use defaults (will be overridden per agent)
+                                    stop_loss_price = 0.0
+                                    take_profit_price = 0.0
+
                                 trade = Trade(
                                     agent=AgentName[agent_name],
                                     symbol=symbol,
                                     trade_type=TradeType[signal.value],
                                     quantity=1.0,
-                                    entry_price=live_data['close'],
+                                    entry_price=entry_price,
+                                    stop_loss=stop_loss_price,
+                                    take_profit=take_profit_price,
                                     status="OPEN"
                                 )
                                 db.add(trade)
@@ -491,22 +511,30 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
 
     result = []
     for t in trades:
-        # Current price: exit_price if closed, else live market price
+        # Get current price for open positions
         current_price = t.exit_price if t.status == "CLOSED" else 0
         if t.status == "OPEN":
-            # Fetch live price for open positions
-            security_id = SYMBOL_TO_ID.get(t.symbol)
-            if security_id and t.agent.value != "XAUUSD":
-                live_data = dhan_client.get_live_data(security_id, t.symbol, "")
+            if t.agent.value == "XAUUSD":
+                # XAUUSD uses OANDA API
+                live_data = onda_client.get_live_data(t.symbol)
                 current_price = live_data.get("close", 0)
-            elif t.agent.value == "XAUUSD":
-                live_data = onda_client.get_live_data(t.symbol, "FOREXCFD")
-                current_price = live_data.get("close", 0)
+
+        # Calculate P&L: for OPEN trades use current_price, for CLOSED use exit_price
+        pnl = t.pnl
+        if t.status == "OPEN" and current_price > 0:
+            # Unrealized P&L
+            if t.trade_type.value == "BUY":
+                pnl = (current_price - t.entry_price) * t.quantity
+            else:  # SELL
+                pnl = (t.entry_price - current_price) * t.quantity
 
         # P&L percent
         pnl_pct = 0.0
         if t.entry_price and t.quantity:
-            pnl_pct = (t.pnl / (t.entry_price * t.quantity)) * 100
+            pnl_pct = (pnl / (t.entry_price * t.quantity)) * 100
+
+        # Determine currency based on agent
+        currency = "USD" if t.agent.value == "XAUUSD" else "INR"
 
         result.append({
             "id": t.id,
@@ -518,11 +546,12 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
             "entry_price": t.entry_price,
             "exit_price": t.exit_price,
             "current_price": current_price,
-            "pnl": t.pnl,
+            "pnl": pnl,
             "pnl_percent": pnl_pct,
+            "currency": currency,  # USD for XAUUSD, INR for others
             "status": t.status,
-            "stop_loss": 0.0,  # Not tracked in trades yet
-            "take_profit": 0.0,  # Not tracked in trades yet
+            "stop_loss": t.stop_loss,
+            "take_profit": t.take_profit,
             "entry_time": t.created_at.isoformat(),
             "exit_time": t.closed_at.isoformat() if t.closed_at else None,
             "created_at": t.created_at.isoformat(),
