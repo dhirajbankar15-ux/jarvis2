@@ -7,36 +7,38 @@ import requests
 
 class OndaClient:
     """
-    Onda Trading integration for live XAUUSD pricing (forex/commodities).
-    Requires: ONDA_API_KEY, ONDA_ACCESS_TOKEN environment variables
+    OANDA API integration for live XAUUSD pricing (forex/commodities).
+    Requires: ONDA_ACCESS_TOKEN environment variable
     """
 
     def __init__(self):
-        self.api_key = os.getenv("ONDA_API_KEY", "")
         self.access_token = os.getenv("ONDA_ACCESS_TOKEN", "")
-        self.base_url = "https://api.onda.trading/v1"
+        self.base_url = "https://api-fxpractice.oanda.com/v3"
         self.rate_limit_cooldowns = {}
         self.last_fetch = {}
+        self.is_connected = False
+        if self.access_token:
+            self.is_connected = True
 
     def get_live_data(self, symbol: str, quote_type: str = "XAUUSD") -> Dict:
         """
-        Fetch live XAUUSD price from Onda Trading API.
+        Fetch live XAUUSD price from OANDA API.
 
         Args:
             symbol: Trading symbol (XAUUSD, EURUSD, etc.)
-            quote_type: Quote type (LTP/OHLC)
+            quote_type: Quote type (not used with OANDA)
 
         Returns:
-            Dict with symbol, price, timestamp, OHLC data
+            Dict with symbol, OHLC data, timestamp
         """
 
-        # Check if credentials are real (not placeholders)
-        if not self.api_key or self.api_key == "your_onda_api_key":
+        # Check if credentials configured
+        if not self.access_token:
             return {
                 "symbol": symbol,
                 "close": 0,
                 "status": "credentials_missing",
-                "note": "Onda credentials not configured"
+                "note": "OANDA_ACCESS_TOKEN not configured"
             }
 
         # Check cooldown from rate limiting
@@ -48,13 +50,13 @@ class OndaClient:
         try:
             headers = {
                 "Authorization": f"Bearer {self.access_token}",
-                "X-API-Key": self.api_key,
                 "Content-Type": "application/json"
             }
 
-            # Onda LTP endpoint for forex/commodities
-            url = f"{self.base_url}/quotes/ltp"
-            params = {"symbols": symbol}
+            # OANDA candles endpoint - get latest 1-minute candle
+            instrument = "XAU_USD" if symbol == "XAUUSD" else symbol
+            url = f"{self.base_url}/instruments/{instrument}/candles"
+            params = {"granularity": "M1", "count": 1}
 
             response = requests.get(url, headers=headers, params=params, timeout=5)
 
@@ -62,36 +64,36 @@ class OndaClient:
             if response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', 120))
                 self.rate_limit_cooldowns[symbol] = time.time() + retry_after
-                print(f"⚠️  Onda rate limited: {symbol}, cooldown {retry_after}s")
                 return {"symbol": symbol, "close": 0, "status": "rate_limited"}
 
             response.raise_for_status()
             data = response.json()
 
-            if data.get("status") == "success" and data.get("data"):
-                quote = data["data"].get(symbol, {})
-                if quote and quote.get("ltp", 0) > 0:
+            # Parse OANDA candle response
+            if data.get("candles") and len(data["candles"]) > 0:
+                candle = data["candles"][0]
+                mid = candle.get("mid", {})
+
+                if mid.get("c"):
                     return {
                         "symbol": symbol,
-                        "close": float(quote.get("ltp", 0)),
-                        "open": float(quote.get("open", 0) or 0),
-                        "high": float(quote.get("high", 0) or 0),
-                        "low": float(quote.get("low", 0) or 0),
-                        "volume": int(quote.get("volume", 0) or 0),
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "exchange": "ONDA",
-                        "currency": "USD"
+                        "close": float(mid.get("c", 0)),
+                        "open": float(mid.get("o", 0)),
+                        "high": float(mid.get("h", 0)),
+                        "low": float(mid.get("l", 0)),
+                        "volume": int(candle.get("volume", 0)),
+                        "timestamp": candle.get("time", datetime.utcnow().isoformat()),
+                        "exchange": "OANDA",
+                        "currency": "USD",
+                        "status": "ok"
                     }
 
-            print(f"⚠️  Onda API error for {symbol}: {data.get('message')}")
-            return {"symbol": symbol, "close": 0, "status": "api_error"}
+            return {"symbol": symbol, "close": 0, "status": "no_data"}
 
         except requests.exceptions.RequestException as e:
-            print(f"⚠️  Onda connection error for {symbol}: {e}")
-            return {"symbol": symbol, "close": 0, "status": "connection_error"}
+            return {"symbol": symbol, "close": 0, "status": "connection_error", "error": str(e)[:50]}
         except Exception as e:
-            print(f"⚠️  Onda client error for {symbol}: {e}")
-            return {"symbol": symbol, "close": 0, "status": "error"}
+            return {"symbol": symbol, "close": 0, "status": "error", "error": str(e)[:50]}
 
     def get_xauusd_price(self) -> float:
         """
