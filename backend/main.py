@@ -359,11 +359,14 @@ async def lifespan(app: FastAPI):
                                     stop_loss_price = 0.0
                                     take_profit_price = 0.0
 
+                                # XAUUSD: 100 oz per trade, other agents: 1 unit
+                                qty = 100.0 if agent_name == "XAUUSD" else 1.0
+
                                 trade = Trade(
                                     agent=AgentName[agent_name],
                                     symbol=symbol,
                                     trade_type=TradeType[signal.value],
-                                    quantity=1.0,
+                                    quantity=qty,
                                     entry_price=entry_price,
                                     stop_loss=stop_loss_price,
                                     take_profit=take_profit_price,
