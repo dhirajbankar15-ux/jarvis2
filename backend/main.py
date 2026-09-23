@@ -333,18 +333,41 @@ async def lifespan(app: FastAPI):
                                     status="OPEN"
                                 )
                                 db.add(trade)
-                            elif signal.value != open_trade.trade_type.value:
-                                # Opposite signal - close the existing position
-                                open_trade.exit_price = live_data['close']
-                                open_trade.pnl = calculate_net_pnl(
-                                    open_trade.entry_price,
-                                    open_trade.exit_price,
-                                    open_trade.quantity,
-                                    open_trade.trade_type.value,
-                                    open_trade.symbol
-                                )
-                                open_trade.status = "CLOSED"
-                                open_trade.closed_at = datetime.utcnow()
+                            else:
+                                # Check if take profit or stop loss is hit (preserve trade history)
+                                current_price = live_data['close']
+                                should_close = False
+
+                                # Check take profit
+                                if open_trade.take_profit and open_trade.take_profit > 0:
+                                    if open_trade.trade_type.value == "BUY" and current_price >= open_trade.take_profit:
+                                        should_close = True
+                                    elif open_trade.trade_type.value == "SELL" and current_price <= open_trade.take_profit:
+                                        should_close = True
+
+                                # Check stop loss
+                                if open_trade.stop_loss and open_trade.stop_loss > 0:
+                                    if open_trade.trade_type.value == "BUY" and current_price <= open_trade.stop_loss:
+                                        should_close = True
+                                    elif open_trade.trade_type.value == "SELL" and current_price >= open_trade.stop_loss:
+                                        should_close = True
+
+                                # Check opposite signal
+                                if signal.value != open_trade.trade_type.value:
+                                    should_close = True
+
+                                if should_close:
+                                    # Close trade - preserve history
+                                    open_trade.exit_price = current_price
+                                    open_trade.pnl = calculate_net_pnl(
+                                        open_trade.entry_price,
+                                        open_trade.exit_price,
+                                        open_trade.quantity,
+                                        open_trade.trade_type.value,
+                                        open_trade.symbol
+                                    )
+                                    open_trade.status = "CLOSED"
+                                    open_trade.closed_at = datetime.utcnow()
                         except Exception as e:
                             logger.error(f"[ERROR] {agent_name}/{symbol} feeder step failed: {e}", exc_info=True)
 

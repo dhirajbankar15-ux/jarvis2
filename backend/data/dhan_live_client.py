@@ -41,18 +41,19 @@ class DhanLiveClient:
     def __init__(self):
         self.client_id = os.getenv("DHAN_CLIENT_ID", "")
         self.access_token = os.getenv("DHAN_ACCESS_TOKEN", "")
+        self.price_lock = Lock()
+        self.latest_prices: Dict[str, Dict] = {}  # security_id -> price data
+        self.market_feed: Optional[MarketFeed] = None
+        self.context: Optional[DhanContext] = None
+        self.subscribed = False
+        self.last_error: Optional[str] = None
+        self.last_traceback: Optional[str] = None
 
         if not self.access_token or not self.client_id:
             print("[WARN] DhanHQ credentials not set")
             return
 
         self.context = DhanContext(self.client_id, self.access_token)
-        self.market_feed: Optional[MarketFeed] = None
-        self.latest_prices: Dict[str, Dict] = {}  # security_id -> price data
-        self.price_lock = Lock()
-        self.subscribed = False
-        self.last_error: Optional[str] = None
-        self.last_traceback: Optional[str] = None
 
     def on_connect(self, instance):
         """Callback when WebSocket connects"""
