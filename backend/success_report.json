@@ -1,0 +1,12 @@
+{
+  "status": "SUCCESS",
+  "cycles": 10,
+  "target_achieved": true,
+  "timestamp": "2026-09-18T17:16:10.118141",
+  "agents": {
+    "STOCKS": 90.0,
+    "SENSEX": 90.0,
+    "OPTIONS": 90.0,
+    "CANDLE": 90.0
+  }
+}
