@@ -11,6 +11,9 @@ from pathlib import Path
 import logging
 import sys
 import pytz
+from dotenv import load_dotenv
+
+load_dotenv()  # Load ONDA_ACCESS_TOKEN from .env
 
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -273,7 +276,7 @@ async def lifespan(app: FastAPI):
                             # XAUUSD forex: 16:00 UTC - 23:00 UTC (4 PM - 11 PM UTC = 9:30 PM - 4:30 AM IST next day)
                             xauusd_start = time(16, 0)
                             xauusd_end = time(23, 0)
-                            is_xauusd_hours = now_utc.time() >= xauusd_start or now_utc.time() <= time(23, 59)
+                            is_xauusd_hours = xauusd_start <= now_utc.time() < xauusd_end
 
                             # Skip if outside market hours
                             if agent_name == "XAUUSD" and not is_xauusd_hours:

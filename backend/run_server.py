@@ -15,8 +15,8 @@ print(f"[OK] DHAN_CLIENT_ID: {'SET' if client_id else 'MISSING'}")
 print(f"[OK] DHAN_ACCESS_TOKEN: {'SET' if access_token else 'MISSING'}")
 
 if not client_id or not access_token:
-    print("[ERROR] DhanHQ credentials not set!")
-    sys.exit(1)
+    print("[WARN] DhanHQ credentials not set - NSE agents (STOCKS/SENSEX/OPTIONS) will skip. XAUUSD (OANDA) will trade.")
+    print("[WARN] To enable NSE agents, set DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in .env")
 
 # Start server
 import uvicorn
