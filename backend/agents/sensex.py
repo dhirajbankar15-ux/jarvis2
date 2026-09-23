@@ -20,11 +20,16 @@ class SensexAgent(BaseAgent):
         if high == 0 or low == 0:
             return Signal.HOLD
 
-        range_percent = ((high - low) / low) * 100
+        range_val = high - low
 
-        if close > (low + (high - low) * 0.7):
+        # Balanced thresholds: 65%/35% (sweet spot between loose and strict)
+        # Captures reversals from range extremes without edge-case noise
+        upper_threshold = low + (range_val * 0.65)  # Top 35% of range
+        lower_threshold = low + (range_val * 0.35)  # Bottom 35% of range
+
+        if close > upper_threshold:
             return Signal.BUY
-        elif close < (low + (high - low) * 0.3):
+        elif close < lower_threshold:
             return Signal.SELL
         else:
             return Signal.HOLD
