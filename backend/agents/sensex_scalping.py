@@ -52,6 +52,9 @@ class SensexScalpingAgent:
 
     def process_tick(self, price: float):
         """Process incoming price tick and build 3-minute candles with volume"""
+        if price <= 0:
+            return  # Ignore invalid prices (startup race condition)
+
         now = datetime.now(self.ist)
 
         if self.current_candle_start is None:
@@ -109,47 +112,35 @@ class SensexScalpingAgent:
         """
         try:
             price = live_data.get('close', 0)
+
             if price <= 0:
                 return TrendSignal.HOLD
 
             self.process_tick(price)
 
-            candles = []
-            if len(self.completed_candles) > 0:
-                candles.append(self.completed_candles[-1])
-            if self.current_candle["close"] is not None:
-                candles.append(self.current_candle)
-
-            # Start with 2 candles for faster startup, use 3 when available
-            min_candles = 2 if len(self.completed_candles) < 3 else 3
-            if len(candles) < min_candles:
+            # Need at least 2 completed candles for analysis
+            min_candles = 2
+            if len(self.completed_candles) < min_candles:
                 return TrendSignal.HOLD
 
-            # Get last 3 candles for multi-candle confirmation (or 2 if starting up)
-            recent = [self.completed_candles[-i] if i <= len(self.completed_candles) else self.current_candle
-                     for i in range(1, 4)]
-            recent = [c for c in recent if c][:min_candles]
-
+            # Get last 2-3 candles for multi-candle confirmation
+            recent = self.completed_candles[-min_candles:]
             if len(recent) < min_candles:
                 return TrendSignal.HOLD
 
-            # Check trend (2 or 3 candle confirmation based on available data)
+            # Check trend (2-candle confirmation: both green or both red)
             bullish_count = sum(1 for c in recent if c.get("close", 0) > c.get("open", 0))
             bearish_count = len(recent) - bullish_count
 
-            # Require majority in same direction (2/2 or 2/3)
-            if bullish_count == 0 and bearish_count == 0:
-                return TrendSignal.HOLD
-            if min_candles == 2:
-                # For 2-candle: need both bullish or both bearish
-                if bullish_count < 2 and bearish_count < 2:
-                    return TrendSignal.HOLD
+            # Skip if no clear direction
+            if bullish_count == 0 or bullish_count == len(recent):
+                # All same color (bullish or bearish) - good!
+                pass
             else:
-                # For 3-candle: need at least 2/3 in same direction
-                if bullish_count < 2 and bearish_count < 2:
-                    return TrendSignal.HOLD
+                # Mixed candles - no clear trend
+                return TrendSignal.HOLD
 
-            # Volume confirmation
+            # Volume confirmation (must be above average)
             if not self._check_volume_confirmation():
                 return TrendSignal.HOLD
 
@@ -158,22 +149,20 @@ class SensexScalpingAgent:
             if support is None:
                 return TrendSignal.HOLD
 
-            # NEW: Check current candle color to confirm trade direction
-            current_is_green = self.current_candle.get("close", 0) > self.current_candle.get("open", 0)
-            current_is_red = self.current_candle.get("close", 0) < self.current_candle.get("open", 0)
-
-            # Entry signals with confluence - ONLY trade in direction of trend + candle color match
-            if bullish_count >= 2:
-                # UPTREND: Only BUY on GREEN candles (close > open)
-                if current_is_green and price > (support + 2) and price < (resistance - 2):
+            # Entry signals: ONLY trade confirmed trends, ignore noise
+            if bullish_count == len(recent):
+                # UPTREND: All candles are GREEN (close > open)
+                # Only BUY if price is above support + buffer
+                if price > (support + 3):
                     self.entry_signal = TrendSignal.BUY
                     self.entry_price = price
                     self.last_entry_time = datetime.now(self.ist)
                     return TrendSignal.BUY
 
-            elif bearish_count >= 2:
-                # DOWNTREND: Only SELL on RED candles (close < open)
-                if current_is_red and price < (resistance - 2) and price > (support + 2):
+            elif bearish_count == len(recent):
+                # DOWNTREND: All candles are RED (close < open)
+                # Only SELL if price is below resistance - buffer
+                if price < (resistance - 3):
                     self.entry_signal = TrendSignal.SELL
                     self.entry_price = price
                     self.last_entry_time = datetime.now(self.ist)
