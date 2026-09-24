@@ -145,7 +145,7 @@ class AutonomousOptimizer:
                 "max_drawdown": result.max_drawdown,
             }
 
-            status = "[OK]" if result.win_rate >= 90 else "⚠"
+            status = "[OK]" if result.win_rate >= 90 else "[WARN]"
             print(f"  {status} {agent_name:12} | Win Rate: {result.win_rate:6.2f}% | P&L: ${result.total_pnl:8.2f}")
 
         self.improvement_log.append({
@@ -197,7 +197,7 @@ class AutonomousOptimizer:
         print(f"  Team Average Win Rate: {avg_win_rate:.2f}%")
 
         for agent_name, win_rate in team_performance.items():
-            status = "[OK] EXCELLENT" if win_rate >= 90 else "-> IMPROVING" if win_rate >= 80 else "⚠ CRITICAL"
+            status = "[OK] EXCELLENT" if win_rate >= 90 else "-> IMPROVING" if win_rate >= 80 else "[WARN] CRITICAL"
             print(f"    {agent_name:12}: {win_rate:6.2f}% {status}")
 
     async def _phase_strategy_research(self):

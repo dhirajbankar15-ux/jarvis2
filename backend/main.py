@@ -538,28 +538,31 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
         query = query.filter(Trade.agent == AgentName[agent])
     trades = query.order_by(Trade.created_at.desc()).limit(100).all()
 
-    if agent == "SENSEX":
-        with open("/tmp/debug.txt", "a") as f:
-            f.write(f"[{datetime.utcnow()}] /trades SENSEX called\n")
-
     result = []
     for t in trades:
+        if t.agent.value == "SENSEX" and t.status == "OPEN":
+            import sys
+            print(f"[SENSEX DEBUG] Processing trade: agent={t.agent.value}, status={t.status}, entry={t.entry_price}", file=sys.stderr, flush=True)
         # Get current price for open positions
         current_price = t.exit_price if t.status == "CLOSED" else 0
         if t.status == "OPEN":
-            if t.agent.value == "XAUUSD":
-                # XAUUSD uses OANDA API
-                live_data = onda_client.get_live_data(t.symbol)
-                current_price = live_data.get("close", 0)
-            else:
-                # Indian agents use DhanHQ live prices
-                security_id = SYMBOL_TO_ID.get(t.symbol)
-                if security_id:
-                    # latest_prices keys are strings, convert security_id to string
-                    price_data = dhan_client.latest_prices.get(str(security_id), {})
-                    current_price = price_data.get("close", 0)
-                    if current_price == 0:
-                        print(f"[DEBUG /trades] {t.symbol} (ID {security_id}): price_data={price_data}, latest_prices_keys={list(dhan_client.latest_prices.keys())[:5]}", flush=True)
+            try:
+                if t.agent.value == "XAUUSD":
+                    # XAUUSD uses OANDA API
+                    live_data = onda_client.get_live_data(t.symbol)
+                    current_price = live_data.get("close", 0)
+                else:
+                    # Indian agents use DhanHQ live prices
+                    security_id = SYMBOL_TO_ID.get(t.symbol)
+                    if security_id and dhan_client and dhan_client.latest_prices:
+                        price_data = dhan_client.latest_prices.get(str(security_id), {})
+                        current_price = price_data.get("close", 0)
+                        if t.agent.value == "SENSEX":
+                            import sys
+                            print(f"[SENSEX PRICE] ID={security_id}, price_data={price_data}, current_price={current_price}", file=sys.stderr, flush=True)
+            except Exception as e:
+                import sys
+                print(f"[ERROR getting price] {t.symbol}: {str(e)}", file=sys.stderr, flush=True)
 
         # Calculate P&L: for OPEN trades use current_price, for CLOSED use exit_price
         pnl = t.pnl
@@ -587,6 +590,11 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
                 else:  # SELL
                     stop_loss_display = t.entry_price + agent.stop_loss_pips
                     take_profit_display = t.entry_price - agent.take_profit_pips
+
+        # TEST: Hardcode for SENSEX to verify code executes
+        if t.agent.value == "SENSEX" and t.entry_price == 74186.68:
+            stop_loss_display = 99999.0
+            take_profit_display = 88888.0
 
         # Determine currency based on agent
         currency = "USD" if t.agent.value == "XAUUSD" else "INR"
