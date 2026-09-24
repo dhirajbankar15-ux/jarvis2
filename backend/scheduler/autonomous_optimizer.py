@@ -31,7 +31,7 @@ class AutonomousOptimizer:
         """
         self.is_running = True
         print("\n" + "="*80)
-        print("🤖 AUTONOMOUS OPTIMIZER STARTED")
+        print("[BOT] AUTONOMOUS OPTIMIZER STARTED")
         print("="*80)
         print(f"Target: 90%+ win rate for ALL agents")
         print(f"Boss Agent in full control - no manual intervention needed")
@@ -43,7 +43,7 @@ class AutonomousOptimizer:
 
             try:
                 print(f"\n{'='*80}")
-                print(f"🔄 OPTIMIZATION CYCLE #{self.cycle_count} - {datetime.utcnow().isoformat()}")
+                print(f"[CYCLE] OPTIMIZATION CYCLE #{self.cycle_count} - {datetime.utcnow().isoformat()}")
                 print(f"{'='*80}\n")
 
                 # Phase 1: Daily standup (boss assigns work)
@@ -79,7 +79,7 @@ class AutonomousOptimizer:
                 await asyncio.sleep(300)  # 5 min between cycles
 
             except Exception as e:
-                print(f"\n❌ ERROR in cycle #{self.cycle_count}: {str(e)}")
+                print(f"\n[ERROR] ERROR in cycle #{self.cycle_count}: {str(e)}")
                 self.improvement_log.append({
                     "cycle": self.cycle_count,
                     "timestamp": datetime.utcnow().isoformat(),
@@ -90,7 +90,7 @@ class AutonomousOptimizer:
 
     async def _phase_standup(self):
         """Phase 1: Boss Agent daily standup"""
-        print("📋 PHASE 1: BOSS STANDUP - Task Distribution")
+        print("[PHASE] PHASE 1: BOSS STANDUP - Task Distribution")
         print("-" * 80)
 
         try:
@@ -99,7 +99,7 @@ class AutonomousOptimizer:
         except (AttributeError, TypeError):
             tasks = len(self.agents_map)
 
-        print(f"✓ Boss assigned {tasks} tasks")
+        print(f"[OK] Boss assigned {tasks} tasks")
 
         self.improvement_log.append({
             "cycle": self.cycle_count,
@@ -110,7 +110,7 @@ class AutonomousOptimizer:
 
     async def _phase_analyze_market(self):
         """Phase 2: Analyze market conditions"""
-        print("\n📊 PHASE 2: MARKET ANALYSIS")
+        print("\n[PHASE] PHASE 2: MARKET ANALYSIS")
         print("-" * 80)
 
         # In production, fetch actual market data
@@ -124,11 +124,11 @@ class AutonomousOptimizer:
         print(f"  Volatility: {market_conditions['volatility']}")
         print(f"  Trend: {market_conditions['trend']}")
         print(f"  Liquidity: {market_conditions['liquidity']}")
-        print("✓ Market analysis complete")
+        print("[OK] Market analysis complete")
 
     async def _phase_comprehensive_backtest(self):
         """Phase 3: Backtest all agents on recent data"""
-        print("\n🧪 PHASE 3: COMPREHENSIVE BACKTEST")
+        print("\n[PHASE] PHASE 3: COMPREHENSIVE BACKTEST")
         print("-" * 80)
 
         backtest_results = {}
@@ -145,7 +145,7 @@ class AutonomousOptimizer:
                 "max_drawdown": result.max_drawdown,
             }
 
-            status = "✓" if result.win_rate >= 90 else "⚠"
+            status = "[OK]" if result.win_rate >= 90 else "⚠"
             print(f"  {status} {agent_name:12} | Win Rate: {result.win_rate:6.2f}% | P&L: ${result.total_pnl:8.2f}")
 
         self.improvement_log.append({
@@ -157,7 +157,7 @@ class AutonomousOptimizer:
 
     async def _phase_optimize_parameters(self):
         """Phase 4: Optimize parameters for underperformers"""
-        print("\n⚙️  PHASE 4: PARAMETER OPTIMIZATION")
+        print("\n[PHASE]  PHASE 4: PARAMETER OPTIMIZATION")
         print("-" * 80)
 
         # Get agents below 90%
@@ -171,20 +171,20 @@ class AutonomousOptimizer:
         if underperformers:
             print(f"  Optimizing {len(underperformers)} underperforming agents:")
             for agent_name in underperformers:
-                print(f"    → Tuning {agent_name} parameters...")
+                print(f"    -> Tuning {agent_name} parameters...")
                 # In production: actually optimize
                 self.strategy_optimizer.optimize_for_conditions(
                     agent_name,
                     {"volatility": 0.02},
                     []
                 )
-            print("✓ Parameter optimization complete")
+            print("[OK] Parameter optimization complete")
         else:
-            print("✓ All agents at/above 90% - no optimization needed")
+            print("[OK] All agents at/above 90% - no optimization needed")
 
     async def _phase_evaluate_performance(self):
         """Phase 5: Evaluate overall team performance"""
-        print("\n📈 PHASE 5: PERFORMANCE EVALUATION")
+        print("\n[PHASE] PHASE 5: PERFORMANCE EVALUATION")
         print("-" * 80)
 
         team_performance = {}
@@ -197,12 +197,12 @@ class AutonomousOptimizer:
         print(f"  Team Average Win Rate: {avg_win_rate:.2f}%")
 
         for agent_name, win_rate in team_performance.items():
-            status = "✓ EXCELLENT" if win_rate >= 90 else "→ IMPROVING" if win_rate >= 80 else "⚠ CRITICAL"
+            status = "[OK] EXCELLENT" if win_rate >= 90 else "-> IMPROVING" if win_rate >= 80 else "⚠ CRITICAL"
             print(f"    {agent_name:12}: {win_rate:6.2f}% {status}")
 
     async def _phase_strategy_research(self):
         """Phase 6: Research new strategies for improvement"""
-        print("\n🔬 PHASE 6: STRATEGY RESEARCH")
+        print("\n[PHASE] PHASE 6: STRATEGY RESEARCH")
         print("-" * 80)
 
         # Each agent researches improvements
@@ -213,11 +213,11 @@ class AutonomousOptimizer:
                 for i, sugg in enumerate(suggestions[:3], 1):
                     print(f"    {i}. {sugg}")
 
-        print("✓ Strategy research complete")
+        print("[OK] Strategy research complete")
 
     async def _phase_boss_decision(self):
         """Phase 7: Boss agent builds consensus"""
-        print("\n🎯 PHASE 7: BOSS DECISION - TEAM CONSENSUS")
+        print("\n[PHASE] PHASE 7: BOSS DECISION - TEAM CONSENSUS")
         print("-" * 80)
 
         # Mock agent signals
@@ -240,11 +240,11 @@ class AutonomousOptimizer:
 
         print(f"  Consensus Decision: {decision}")
         print(f"  Confidence: {confidence:.2%}")
-        print("✓ Boss consensus complete")
+        print("[OK] Boss consensus complete")
 
     async def _check_target_achievement(self) -> bool:
         """Phase 8: Check if 90%+ achieved across all agents"""
-        print("\n🏆 PHASE 8: TARGET CHECK")
+        print("\n[PHASE] PHASE 8: TARGET CHECK")
         print("-" * 80)
 
         # Mock check (in production: query actual performance from DB)
@@ -257,15 +257,15 @@ class AutonomousOptimizer:
             if win_rate < 90:
                 all_above_90 = False
 
-            status = "✓" if win_rate >= 90 else "→"
-            print(f"  {status} {agent_name:12}: {win_rate:.2f}% {'✓ TARGET HIT' if win_rate >= 90 else ''}")
+            status = "[OK]" if win_rate >= 90 else "->"
+            print(f"  {status} {agent_name:12}: {win_rate:.2f}% {'[OK] TARGET HIT' if win_rate >= 90 else ''}")
 
         return all_above_90
 
     async def _victory_report(self):
         """Report when 90%+ achieved"""
         print("\n" + "="*80)
-        print("🎉 SUCCESS! ALL AGENTS AT 90%+ WIN RATE!")
+        print("[SUCCESS] SUCCESS! ALL AGENTS AT 90%+ WIN RATE!")
         print("="*80)
         print(f"Cycles completed: {self.cycle_count}")
         print(f"Total runtime: {datetime.utcnow().isoformat()}")
@@ -283,7 +283,7 @@ class AutonomousOptimizer:
         with open("success_report.json", "w") as f:
             json.dump(report, f, indent=2)
 
-        print("✓ Success report saved to success_report.json")
+        print("[OK] Success report saved to success_report.json")
 
     def _generate_mock_ohlcv(self, bars: int) -> List[Dict]:
         """Generate mock OHLCV data for testing"""

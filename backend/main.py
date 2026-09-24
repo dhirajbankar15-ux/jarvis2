@@ -538,6 +538,10 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
         query = query.filter(Trade.agent == AgentName[agent])
     trades = query.order_by(Trade.created_at.desc()).limit(100).all()
 
+    if agent == "SENSEX":
+        with open("/tmp/debug.txt", "a") as f:
+            f.write(f"[{datetime.utcnow()}] /trades SENSEX called\n")
+
     result = []
     for t in trades:
         # Get current price for open positions
@@ -554,6 +558,8 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
                     # latest_prices keys are strings, convert security_id to string
                     price_data = dhan_client.latest_prices.get(str(security_id), {})
                     current_price = price_data.get("close", 0)
+                    if current_price == 0:
+                        print(f"[DEBUG /trades] {t.symbol} (ID {security_id}): price_data={price_data}, latest_prices_keys={list(dhan_client.latest_prices.keys())[:5]}", flush=True)
 
         # Calculate P&L: for OPEN trades use current_price, for CLOSED use exit_price
         pnl = t.pnl
