@@ -388,11 +388,15 @@ async def lifespan(app: FastAPI):
     # Start live market feeder in background
     ticker_task = asyncio.create_task(live_market_feeder())
 
-    # Autonomous optimizer DISABLED temporarily - feeder loop must run first
-    # TODO: Fix AutonomousOptimizer crash and re-enable
-    # db = SessionLocal()
-    # autonomous_optimizer = AutonomousOptimizer(...)
-    # optimizer_task = asyncio.create_task(autonomous_optimizer.start_autonomous_improvement_loop())
+    # Initialize and start autonomous optimizer (24/7 self-learning until 90%+)
+    db = SessionLocal()
+    autonomous_optimizer = AutonomousOptimizer(
+        boss_agent, agents_map, learning_engine, backtest_engine,
+        strategy_optimizer, market_researcher, performance_monitor, db
+    )
+
+    # Start autonomous loop (runs until 90%+ achieved)
+    optimizer_task = asyncio.create_task(autonomous_optimizer.start_autonomous_improvement_loop())
 
     print("\n" + "="*80)
     print("AUTONOMOUS MODE ACTIVATED")
