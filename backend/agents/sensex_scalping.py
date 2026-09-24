@@ -112,24 +112,34 @@ class SensexScalpingAgent:
             if self.current_candle["close"] is not None:
                 candles.append(self.current_candle)
 
-            if len(candles) < 3:
+            # Start with 2 candles for faster startup, use 3 when available
+            min_candles = 2 if len(self.completed_candles) < 3 else 3
+            if len(candles) < min_candles:
                 return TrendSignal.HOLD
 
-            # Get last 3 candles for multi-candle confirmation
+            # Get last 3 candles for multi-candle confirmation (or 2 if starting up)
             recent = [self.completed_candles[-i] if i <= len(self.completed_candles) else self.current_candle
                      for i in range(1, 4)]
-            recent = [c for c in recent if c][:3]
+            recent = [c for c in recent if c][:min_candles]
 
-            if len(recent) < 3:
+            if len(recent) < min_candles:
                 return TrendSignal.HOLD
 
-            # Check 3-candle trend (stronger than 2-candle)
+            # Check trend (2 or 3 candle confirmation based on available data)
             bullish_count = sum(1 for c in recent if c.get("close", 0) > c.get("open", 0))
             bearish_count = len(recent) - bullish_count
 
-            # Require at least 2/3 candles in same direction
-            if bullish_count < 2 and bearish_count < 2:
+            # Require majority in same direction (2/2 or 2/3)
+            if bullish_count == 0 and bearish_count == 0:
                 return TrendSignal.HOLD
+            if min_candles == 2:
+                # For 2-candle: need both bullish or both bearish
+                if bullish_count < 2 and bearish_count < 2:
+                    return TrendSignal.HOLD
+            else:
+                # For 3-candle: need at least 2/3 in same direction
+                if bullish_count < 2 and bearish_count < 2:
+                    return TrendSignal.HOLD
 
             # Volume confirmation
             if not self._check_volume_confirmation():
