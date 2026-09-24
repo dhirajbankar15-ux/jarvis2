@@ -64,12 +64,20 @@ class DhanLiveClient:
         try:
             if not isinstance(message, dict):
                 return
-            security_id = str(message.get("security_id", ""))
+
+            # DEBUG: Log message structure once
+            if not hasattr(self, '_logged_msg_keys'):
+                print(f"[DEBUG] Message keys: {list(message.keys())}")
+                self._logged_msg_keys = True
+
+            security_id = str(message.get("security_id") or message.get("SecurityId") or message.get("securityId") or "")
             if not security_id:
                 return
 
-            def _f(key, default=0.0):
-                val = message.get(key, default)
+            def _f(key, alt_key=None, default=0.0):
+                val = message.get(key) or (message.get(alt_key) if alt_key else None)
+                if val is None:
+                    return default
                 try:
                     return float(val)
                 except (TypeError, ValueError):
@@ -77,15 +85,21 @@ class DhanLiveClient:
 
             with self.price_lock:
                 existing = self.latest_prices.get(security_id, {})
-                ltp = _f("LTP", existing.get("close", 0))
+                # Try multiple field name variations
+                ltp = _f("LTP", "ltp", existing.get("close", 0))
+                if ltp == 0:
+                    ltp = _f("close", None, existing.get("close", 0))
+
                 self.latest_prices[security_id] = {
                     "close": ltp,
-                    "open": _f("open", existing.get("open", ltp)),
-                    "high": _f("high", existing.get("high", ltp)),
-                    "low": _f("low", existing.get("low", ltp)),
-                    "volume": int(_f("volume", existing.get("volume", 0))),
+                    "open": _f("open", "Open", existing.get("open", ltp)),
+                    "high": _f("high", "High", existing.get("high", ltp)),
+                    "low": _f("low", "Low", existing.get("low", ltp)),
+                    "volume": int(_f("volume", "Volume", existing.get("volume", 0))),
                     "timestamp": datetime.utcnow().isoformat(),
                 }
+                if ltp > 0:
+                    print(f"[TICK] SecurityID {security_id}: ${ltp:.2f}")
         except Exception as e:
             print(f"[ERROR] WebSocket message parsing: {e}")
 
