@@ -550,8 +550,10 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
             else:
                 # Indian agents use DhanHQ live prices
                 security_id = SYMBOL_TO_ID.get(t.symbol)
-                if security_id and security_id in dhan_client.latest_prices:
-                    current_price = dhan_client.latest_prices[security_id].get("close", 0)
+                if security_id:
+                    # latest_prices keys are strings, convert security_id to string
+                    price_data = dhan_client.latest_prices.get(str(security_id), {})
+                    current_price = price_data.get("close", 0)
 
         # Calculate P&L: for OPEN trades use current_price, for CLOSED use exit_price
         pnl = t.pnl
@@ -566,6 +568,19 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
         pnl_pct = 0.0
         if t.entry_price and t.quantity:
             pnl_pct = (pnl / (t.entry_price * t.quantity)) * 100
+
+        # For trades missing TP/SL, calculate from agent pips
+        stop_loss_display = t.stop_loss
+        take_profit_display = t.take_profit
+        if (stop_loss_display == 0 or take_profit_display == 0) and t.entry_price > 0:
+            agent = agents_map.get(t.agent.value)
+            if agent and hasattr(agent, 'stop_loss_pips') and hasattr(agent, 'take_profit_pips'):
+                if t.trade_type.value == "BUY":
+                    stop_loss_display = t.entry_price - agent.stop_loss_pips
+                    take_profit_display = t.entry_price + agent.take_profit_pips
+                else:  # SELL
+                    stop_loss_display = t.entry_price + agent.stop_loss_pips
+                    take_profit_display = t.entry_price - agent.take_profit_pips
 
         # Determine currency based on agent
         currency = "USD" if t.agent.value == "XAUUSD" else "INR"
@@ -584,8 +599,8 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
             "pnl_percent": pnl_pct,
             "currency": currency,  # USD for XAUUSD, INR for others
             "status": t.status,
-            "stop_loss": t.stop_loss,
-            "take_profit": t.take_profit,
+            "stop_loss": stop_loss_display,
+            "take_profit": take_profit_display,
             "entry_time": t.created_at.isoformat(),
             "exit_time": t.closed_at.isoformat() if t.closed_at else None,
             "created_at": t.created_at.isoformat(),
