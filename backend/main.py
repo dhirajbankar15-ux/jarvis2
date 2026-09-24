@@ -547,6 +547,11 @@ async def get_trades(agent: str = None, db: Session = Depends(get_db)):
                 # XAUUSD uses OANDA API
                 live_data = onda_client.get_live_data(t.symbol)
                 current_price = live_data.get("close", 0)
+            else:
+                # Indian agents use DhanHQ live prices
+                security_id = SYMBOL_TO_ID.get(t.symbol)
+                if security_id and security_id in dhan_client.latest_prices:
+                    current_price = dhan_client.latest_prices[security_id].get("close", 0)
 
         # Calculate P&L: for OPEN trades use current_price, for CLOSED use exit_price
         pnl = t.pnl
