@@ -98,7 +98,13 @@ class SensexScalpingAgent:
         return current_volume >= (avg_volume * 0.5)
 
     def analyze(self, live_data):
-        """SENSEX FNO scalping: Trend + Volume + Support/Resistance confluence"""
+        """SENSEX FNO scalping: Trend + Volume + Support/Resistance + Candle Color confirmation
+
+        STRATEGY: Only take trades in the direction of the trend with matching candle color
+        - In UPTREND: only BUY on GREEN candles (close > open)
+        - In DOWNTREND: only SELL on RED candles (close < open)
+        This reduces SL hits by trading WITH the trend, not against it
+        """
         try:
             price = live_data.get('close', 0)
             if price <= 0:
@@ -150,18 +156,22 @@ class SensexScalpingAgent:
             if support is None:
                 return TrendSignal.HOLD
 
-            # Entry signals with confluence
+            # NEW: Check current candle color to confirm trade direction
+            current_is_green = self.current_candle.get("close", 0) > self.current_candle.get("open", 0)
+            current_is_red = self.current_candle.get("close", 0) < self.current_candle.get("open", 0)
+
+            # Entry signals with confluence - ONLY trade in direction of trend + candle color match
             if bullish_count >= 2:
-                # Bullish: price must be above support + buffer
-                if price > (support + 2) and price < (resistance - 2):
+                # UPTREND: Only BUY on GREEN candles (close > open)
+                if current_is_green and price > (support + 2) and price < (resistance - 2):
                     self.entry_signal = TrendSignal.BUY
                     self.entry_price = price
                     self.last_entry_time = datetime.now(self.ist)
                     return TrendSignal.BUY
 
             elif bearish_count >= 2:
-                # Bearish: price must be below resistance - buffer
-                if price < (resistance - 2) and price > (support + 2):
+                # DOWNTREND: Only SELL on RED candles (close < open)
+                if current_is_red and price < (resistance - 2) and price > (support + 2):
                     self.entry_signal = TrendSignal.SELL
                     self.entry_price = price
                     self.last_entry_time = datetime.now(self.ist)
