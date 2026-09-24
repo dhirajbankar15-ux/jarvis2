@@ -414,7 +414,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
-    print("✓ Shutdown complete")
+    print("[OK] Shutdown complete")
 
 app = FastAPI(title="Jarvis 2 Trading Platform", lifespan=lifespan)
 
@@ -793,7 +793,7 @@ async def get_optimizer_progress():
         "cycle_count": autonomous_optimizer.cycle_count,
         "target_hit": autonomous_optimizer.target_hit,
         "target_percent": 90,
-        "message": "Running 24/7 until 90%+ achieved" if not autonomous_optimizer.target_hit else "✓ TARGET ACHIEVED!"
+        "message": "Running 24/7 until 90%+ achieved" if not autonomous_optimizer.target_hit else "[OK] TARGET ACHIEVED!"
     }
 
 class ConnectionManager:
