@@ -177,14 +177,14 @@ class DhanLiveClient:
         with self.price_lock:
             data = self.latest_prices.get(str(security_id), {})
 
-        if data and data.get("close", 0) > 0:
+        if data:
             return {
                 "symbol": symbol,
                 "segment": segment,
                 **data
             }
 
-        # Return empty if no data yet
+        # Return template with zeros if no data yet (caller checks close value)
         return {
             "symbol": symbol,
             "segment": segment,

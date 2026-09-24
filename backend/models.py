@@ -14,6 +14,7 @@ class AgentName(str, enum.Enum):
     CANDLE = "CANDLE"
     XAUUSD = "XAUUSD"
     SENSEX_SCALPING = "SENSEX_SCALPING"
+    SENSEX_OPTIONS_SCALPING = "SENSEX_OPTIONS_SCALPING"
 
 class Trade(Base):
     __tablename__ = "trades"
@@ -31,6 +32,8 @@ class Trade(Base):
     status = Column(String(20), default="OPEN")
     created_at = Column(DateTime, default=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
+    option_strike = Column(String(20), nullable=True)
+    option_price = Column(Float, nullable=True)
 
 class Position(Base):
     __tablename__ = "positions"

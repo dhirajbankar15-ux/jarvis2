@@ -25,7 +25,7 @@ from agents.stocks import StocksAgent
 from agents.sensex import SensexAgent
 from agents.options import OptionsAgent
 from agents.xauusd import XAUUSDAgent
-from agents.sensex_scalping import SensexScalpingAgent
+from agents.sensex_options_scalping import SensexOptionsScalpingAgent
 from learning.learning_engine import LearningEngine
 from learning.strategy_optimizer import StrategyOptimizer
 from learning.market_researcher import MarketResearcher
@@ -45,7 +45,7 @@ agents_map = {
     "SENSEX": SensexAgent(),
     "OPTIONS": OptionsAgent(),
     "XAUUSD": XAUUSDAgent(),
-    "SENSEX_SCALPING": SensexScalpingAgent(),
+    "SENSEX_OPTIONS_SCALPING": SensexOptionsScalpingAgent(),
 }
 
 learning_engine = LearningEngine()
@@ -114,6 +114,13 @@ def calculate_net_pnl(entry_price, exit_price, quantity, trade_type, symbol):
         raw_pnl = (exit_price - entry_price) * quantity
     else:  # SELL
         raw_pnl = (entry_price - exit_price) * quantity
+
+    # SENSEX_OPTIONS_SCALPING: Use minimal charges (premium-based, not index-based)
+    # Options have different charge structure - for now use minimal charges
+    if "SENSEX" in str(symbol) and quantity > 100:  # Options scalping (1000 units)
+        # Options trading: minimal charges (~₹50-100 per trade for scalp)
+        total_charges = 100  # Flat ₹100 for now
+        return raw_pnl - total_charges
 
     # Determine charge structure based on symbol
     if symbol == "XAUUSD":
@@ -217,18 +224,18 @@ async def lifespan(app: FastAPI):
         """Fetch LIVE market data from DhanHQ and feed to agents"""
         # Exchange segments for each agent (DhanHQ format: NSE_EQ, NSE_FO, etc.)
         agent_segments = {
-            "STOCKS": "NSE_EQ",        # NSE Equity
-            "SENSEX": "IDX_I",         # BSE/NSE Index
-            "OPTIONS": "NSE_FO",       # NSE F&O (derivatives)
-            "SENSEX_SCALPING": "IDX_I",  # Index for scalping
-            "XAUUSD": "FOREXCFD",      # Forex (ONDA API)
+            "STOCKS": "NSE_EQ",              # NSE Equity
+            "SENSEX": "IDX_I",               # BSE/NSE Index
+            "OPTIONS": "NSE_FO",             # NSE F&O (derivatives)
+            "SENSEX_OPTIONS_SCALPING": "IDX_I",  # Index for trend detection
+            "XAUUSD": "FOREXCFD",            # Forex (ONDA API)
         }
 
         symbol_map = {
             "STOCKS": ["RELIANCE", "TCS", "INFY", "HDFC", "BAJAJ-AUTO"],
             "SENSEX": ["SENSEX"],
             "OPTIONS": ["NIFTY", "BANKNIFTY"],
-            "SENSEX_SCALPING": ["SENSEX"],
+            "SENSEX_OPTIONS_SCALPING": ["SENSEX"],  # Uses SENSEX price for trend
             "XAUUSD": ["XAUUSD"],
         }
 
@@ -253,10 +260,8 @@ async def lifespan(app: FastAPI):
                                 else:
                                     live_data = {}  # Unknown symbol
 
-                            # No live data yet from DhanHQ/ONDA WebSocket - skip this tick (no mock fallback)
-                            if live_data.get("close", 0) == 0:
-                                print(f"[NO DATA] {agent_name}/{symbol}: waiting for live feed", flush=True)
-                                continue
+                            # Pass data to agent even if close=0 (race condition on startup)
+                            # Agent will naturally skip zero-price ticks in candle building
 
                             agent = agents_map.get(agent_name)
                             if not agent:
@@ -297,19 +302,21 @@ async def lifespan(app: FastAPI):
                                 current_price = live_data['close']
                                 should_close = False
 
-                                # Check take profit
-                                if open_trade.take_profit and open_trade.take_profit > 0:
-                                    if open_trade.trade_type.value == "BUY" and current_price >= open_trade.take_profit:
-                                        should_close = True
-                                    elif open_trade.trade_type.value == "SELL" and current_price <= open_trade.take_profit:
-                                        should_close = True
+                                # Only check TP/SL if price is valid (not 0 or invalid data)
+                                if current_price > 0:
+                                    # Check take profit
+                                    if open_trade.take_profit and open_trade.take_profit > 0:
+                                        if open_trade.trade_type.value == "BUY" and current_price >= open_trade.take_profit:
+                                            should_close = True
+                                        elif open_trade.trade_type.value == "SELL" and current_price <= open_trade.take_profit:
+                                            should_close = True
 
-                                # Check stop loss
-                                if open_trade.stop_loss and open_trade.stop_loss > 0:
-                                    if open_trade.trade_type.value == "BUY" and current_price <= open_trade.stop_loss:
-                                        should_close = True
-                                    elif open_trade.trade_type.value == "SELL" and current_price >= open_trade.stop_loss:
-                                        should_close = True
+                                    # Check stop loss
+                                    if open_trade.stop_loss and open_trade.stop_loss > 0:
+                                        if open_trade.trade_type.value == "BUY" and current_price <= open_trade.stop_loss:
+                                            should_close = True
+                                        elif open_trade.trade_type.value == "SELL" and current_price >= open_trade.stop_loss:
+                                            should_close = True
 
                                 if should_close:
                                     # Close trade immediately - preserve history
@@ -345,23 +352,34 @@ async def lifespan(app: FastAPI):
                                 entry_price = live_data['close']
 
                                 # Calculate stop loss and take profit based on agent parameters
+                                agent = agents_map[agent_name]
                                 if agent_name == "XAUUSD":
-                                    agent = agents_map["XAUUSD"]
                                     sl_pips = agent.stop_loss_pips
                                     tp_pips = agent.target_pips
-                                    if signal.value == "BUY":
-                                        stop_loss_price = entry_price - sl_pips
-                                        take_profit_price = entry_price + tp_pips
-                                    else:  # SELL
-                                        stop_loss_price = entry_price + sl_pips
-                                        take_profit_price = entry_price - tp_pips
                                 else:
-                                    # For other agents, use defaults (will be overridden per agent)
-                                    stop_loss_price = 0.0
-                                    take_profit_price = 0.0
+                                    sl_pips = getattr(agent, 'stop_loss_pips', 50)
+                                    tp_pips = getattr(agent, 'take_profit_pips', 100)
 
-                                # XAUUSD: 100 oz per trade, other agents: 1 unit
-                                qty = 100.0 if agent_name == "XAUUSD" else 1.0
+                                # Calculate TP/SL
+                                if signal.value == "BUY":
+                                    stop_loss_price = entry_price - sl_pips
+                                    take_profit_price = entry_price + tp_pips
+                                else:  # SELL
+                                    stop_loss_price = entry_price + sl_pips
+                                    take_profit_price = entry_price - tp_pips
+
+                                # Get quantity from agent (SENSEX_OPTIONS_SCALPING: 1000, STOCKS: 50, XAUUSD: 100, others: 1)
+                                if agent_name == "STOCKS":
+                                    qty = getattr(agent, 'base_quantity', 50.0)
+                                else:
+                                    qty = getattr(agent, 'quantity', 100.0 if agent_name == "XAUUSD" else 1.0)
+
+                                # Get option details for SENSEX_OPTIONS_SCALPING
+                                option_strike = None
+                                option_price = None
+                                if agent_name == "SENSEX_OPTIONS_SCALPING":
+                                    option_strike = getattr(agent, 'current_atm_strike', None)
+                                    option_price = getattr(agent, 'last_option_premium', None)  # Actual option premium, not index price
 
                                 trade = Trade(
                                     agent=AgentName[agent_name],
@@ -371,7 +389,9 @@ async def lifespan(app: FastAPI):
                                     entry_price=entry_price,
                                     stop_loss=stop_loss_price,
                                     take_profit=take_profit_price,
-                                    status="OPEN"
+                                    status="OPEN",
+                                    option_strike=option_strike,
+                                    option_price=option_price
                                 )
                                 db.add(trade)
                         except Exception as e:
