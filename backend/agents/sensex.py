@@ -5,6 +5,8 @@ class SensexAgent(BaseAgent):
     def __init__(self):
         super().__init__("SENSEX")
         self.symbols = ["SENSEX"]
+        self.stop_loss_pips = 150   # 150 points SL for SENSEX FNO
+        self.take_profit_pips = 300  # 300 points TP (2:1 risk/reward)
 
     def get_symbols(self) -> List[str]:
         return self.symbols

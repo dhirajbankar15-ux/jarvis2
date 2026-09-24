@@ -31,6 +31,8 @@ class SensexScalpingAgent:
         # Scalping parameters
         self.stop_loss_points = 6  # Tight: 6 points
         self.take_profit_points = 12  # 2:1 ratio (TP:SL)
+        self.stop_loss_pips = 6  # Alias for main.py compatibility
+        self.take_profit_pips = 12  # Alias for main.py compatibility
         self.max_hold_time = 300  # 5 minutes max per trade
 
         self.ist = pytz.timezone('Asia/Kolkata')
